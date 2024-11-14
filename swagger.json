@@ -1,93 +1,80 @@
 {
     "openapi": "3.0.0",
     "info": {
-      "title": "Nearby Village Service",
-      "version": "1.0.0",
-      "description": "API untuk mencari desa terdekat dari koordinat tertentu"
+      "title": "Nearest Path Service",
+      "version": "1.0.0"
     },
+    "servers": [
+      {
+        "url": "http://localhost:8080"
+      }
+    ],
     "paths": {
-      "/nearby-villages": {
-        "get": {
-          "summary": "Mencari desa terdekat berdasarkan koordinat",
-          "parameters": [
-            {
-              "name": "latitude",
-              "in": "query",
-              "required": true,
-              "schema": {
-                "type": "number"
-              }
-            },
-            {
-              "name": "longitude",
-              "in": "query",
-              "required": true,
-              "schema": {
-                "type": "number"
-              }
-            }
-          ],
-          "responses": {
-            "200": {
-              "description": "Daftar desa terdekat",
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/Village"
+      "/api/nearest-path": {
+        "post": {
+          "summary": "Find the nearest path based on coordinates",
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "latitude": {
+                      "type": "number",
+                      "example": -6.2
+                    },
+                    "longitude": {
+                      "type": "number",
+                      "example": 106.816666
                     }
                   }
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "components": {
-      "schemas": {
-        "Village": {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "province": {
-              "type": "string"
-            },
-            "district": {
-              "type": "string"
-            },
-            "sub_district": {
-              "type": "string"
-            },
-            "village": {
-              "type": "string"
-            },
-            "border": {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string"
-                },
-                "coordinates": {
-                  "type": "array",
-                  "items": {
-                    "type": "array",
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "type": "number"
+          },
+          "responses": {
+            "200": {
+              "description": "Nearest location found",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "province": {
+                        "type": "string"
+                      },
+                      "district": {
+                        "type": "string"
+                      },
+                      "sub_district": {
+                        "type": "string"
+                      },
+                      "village": {
+                        "type": "string"
+                      },
+                      "border": {
+                        "type": "array",
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "number"
+                          }
+                        }
                       }
                     }
                   }
                 }
               }
+            },
+            "400": {
+              "description": "Invalid input data"
+            },
+            "404": {
+              "description": "No nearby location found"
             }
           }
         }
       }
     }
   }
-  
