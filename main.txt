@@ -1,0 +1,110 @@
+package main
+
+import (
+    "context"
+    "encoding/json"
+    "log"
+    "net/http"
+    "os"
+    "strconv"
+
+    "go.mongodb.org/mongo-driver/bson"
+    "go.mongodb.org/mongo-driver/mongo"
+    "go.mongodb.org/mongo-driver/mongo/options"
+    "go.mongodb.org/mongo-driver/mongo/readpref"
+    "go.mongodb.org/mongo-driver/bson/primitive"
+)
+
+// Struct untuk response desa terdekat
+type Village struct {
+    ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+    Province    string             `json:"province" bson:"province"`
+    District    string             `json:"district" bson:"district"`
+    SubDistrict string             `json:"sub_district" bson:"sub_district"`
+    Village     string             `json:"village" bson:"village"`
+    Border      GeoJSONPolygon     `json:"border" bson:"border"`
+}
+
+type GeoJSONPolygon struct {
+    Type        string        `json:"type" bson:"type"`
+    Coordinates [][][]float64 `json:"coordinates" bson:"coordinates"`
+}
+
+// MongoDB client
+var client *mongo.Client
+
+// Fungsi koneksi ke MongoDB
+func connectDB() *mongo.Client {
+    uri := os.Getenv("MONGODB_URI")
+    clientOptions := options.Client().ApplyURI(uri)
+    client, err := mongo.Connect(context.TODO(), clientOptions)
+    if err != nil {
+        log.Fatal(err)
+    }
+    if err := client.Ping(context.TODO(), readpref.Primary()); err != nil {
+        log.Fatal("Could not connect to MongoDB: ", err)
+    }
+    return client
+}
+
+// Handler untuk mencari desa terdekat berdasarkan koordinat
+func getNearbyVillages(w http.ResponseWriter, r *http.Request) {
+    // Parse parameter latitude dan longitude dari query
+    lat := r.URL.Query().Get("latitude")
+    lon := r.URL.Query().Get("longitude")
+
+    // Konversi lat dan lon ke float64
+    latitude, err := strconv.ParseFloat(lat, 64)
+    if err != nil {
+        http.Error(w, "Invalid latitude", http.StatusBadRequest)
+        return
+    }
+    longitude, err := strconv.ParseFloat(lon, 64)
+    if err != nil {
+        http.Error(w, "Invalid longitude", http.StatusBadRequest)
+        return
+    }
+
+    // Buat query geospasial MongoDB
+    collection := client.Database("osm").Collection("local.Indo")
+    filter := bson.M{
+        "border": bson.M{
+            "$near": bson.M{
+                "$geometry": bson.M{
+                    "type":        "Point",
+                    "coordinates": []float64{longitude, latitude},
+                },
+                "$maxDistance": 10000, // dalam meter, bisa disesuaikan
+            },
+        },
+    }
+
+    // Eksekusi query
+    var results []Village
+    cur, err := collection.Find(context.TODO(), filter)
+    if err != nil {
+        http.Error(w, "Error finding nearby villages", http.StatusInternalServerError)
+        return
+    }
+    defer cur.Close(context.TODO())
+    for cur.Next(context.TODO()) {
+        var village Village
+        err := cur.Decode(&village)
+        if err != nil {
+            log.Fatal(err)
+        }
+        results = append(results, village)
+    }
+
+    // Set header response dan encode hasil ke JSON
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(results)
+}
+
+func main() {
+    client = connectDB()
+    defer client.Disconnect(context.TODO())
+
+    http.HandleFunc("/nearby-villages", getNearbyVillages)
+    log.Fatal(http.ListenAndServe(":8080", nil))
+}
